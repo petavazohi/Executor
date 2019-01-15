@@ -102,9 +102,13 @@ if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
     parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code")
-    parser.add_argument("--mode",dest="mode",type=str,action="store",help="type of calculation")
+#    parser.add_argument()
+    subparsers = parser.add_subparsers()
+    parser_mode = subparsers.add_parser('kpoint_convergence')
+    parser_mode.add_argument('kstart',default=10)
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
     args = parser.parse_args()
     if args.mode == "kpoint_convergence":
-        kpoint_convergence(e_threshold=10e-3,step=10,executable=args.executable,nparal=args.np)
+        print(args)
+#        kpoint_convergence(e_threshold=1e-3,step=10,executable=args.executable,nparal=args.np)
 
