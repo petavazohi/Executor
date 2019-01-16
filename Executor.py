@@ -8,7 +8,6 @@ import re
 import numpy as np 
 import pychemia
 
-
 def create_kpoints(length,work_dir):
     length = str(length)+'\n'
     comment = 'Automatic mesh'+'\n'
@@ -25,12 +24,12 @@ def create_kpoints(length,work_dir):
 def create_incar(mode, sys_name,work_dir):
     if mode == "kpoint_convergence":
         incar = pychemia.code.vasp.VaspInput()
-        incar['ENCUT']  = 400
+        incar.set_encut(1.4,POTCAR='POTCAR')
         incar['SYSTEM'] = sys_name
         incar['EDIFF' ] = 1e-5
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
-        incar['NCORE']  = 4
+        incar['NCORE' ] = 4
         incar.write(work_dir+os.sep+"INCAR")
     elif mode == "workfunction":
         incar = pychemia.code.vasp.VaspInput()
@@ -46,16 +45,16 @@ def create_incar(mode, sys_name,work_dir):
         incar.write(work_dir+os.sep+"INCAR")
     return 
 
-def kpoint_convergence(e_threshold,step,executable,nparal):
+def kpoint_convergence(e_threshold,step,executable):
     address_kpoint = os.getcwd() 
     toten = []
     kmesh = []
-    wf = open(address_kpoint+os.sep+"convergence",'w')
+    wf = open(address_kpoint+os.sep+"kpoint_convergence",'w')
     create_incar(mode='kpoint_convergence', sys_name=address_kpoint.split('/')[-1],work_dir=address_kpoint)
     # create potcar here 
     for klength in np.arange(1,11)*step:
         create_kpoints(klength,work_dir=address_kpoint)
-        runtime = execute(nparal,address_kpoint,executable)
+        runtime = execute(args.np,address_kpoint,executable)
         rf = open(address_kpoint+os.sep+"OUTCAR",'r')
         data = rf.read()
         rf.close()
@@ -68,17 +67,43 @@ def kpoint_convergence(e_threshold,step,executable,nparal):
                 print("VASP calculations converged with k points length %i and kmesh %s " % (klength,kmesh[-1]))
                 wf.close()
                 break
-            else : 
-                os.remove(address_kpoint+os.sep+"CHG")
-                os.remove(address_kpoint+os.sep+"CHGCAR")
-                os.remove(address_kpoint+os.sep+"WAVECAR")
-                
-        else : 
-            os.remove(address_kpoint+os.sep+"CHG")
-            os.remove(address_kpoint+os.sep+"CHGCAR")
-            os.remove(address_kpoint+os.sep+"WAVECAR")
     return 
 
+def encut_convergence(e_threshold,step,executable):
+    address_encut = os.getcwd()
+    toten = []
+    kmesh = []
+    wf = open(address_encut+os.sep+"encut_convergence",'w')
+    if not os.path.exists(address_encut+os.sep+'KPOINTS'):
+        create_kpoints(10,workdir=address_encut)
+    rf = open(address_encut+os.sep+'POTCAR')
+    potcar = rf.read()
+    rf.close()
+    encut_init = round(max([float(x) for x in re.findall('ENMAX\s*=\s*([0-9.]*);',potcar)])*1.3)
+    encuts = np.arange(encut_init,1000,step)
+    for iencut in encuts:
+        incar = pychemia.code.vasp.VaspInput()
+        incar.set_encut(ENCUT=iencut)
+        incar['SYSTEM'] = sys_name
+        incar['EDIFF' ] = 1e-5
+        incar['NWRITE'] = 2
+        incar['PREC'  ] = 'Accurate'
+        incar['NCORE' ] = 4
+        incar.write(work_dir+os.sep+"INCAR")
+        runtime = execute(args.np,address_kpoint,executable)
+        rf = open(address_encut+os.sep+"OUTCAR",'r')
+        data = rf.read()
+        rf.close()
+        toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
+        kmesh.append(re.findall("generate k-points for.*",data)[0])
+        wf.write("kpoint length = %i ,kmesh = %s, TOTEN =%f \n" %(klength,kmesh[-1],toten[-1]))
+        if iencut != encut_init : # this is to check if it's not doing the calculation for the first time                                                                                                  
+            change = abs(toten[-2]-toten[-1])
+            if change < e_threshold :
+                print("VASP calculations converged with encut " % (iencut))
+                wf.close()
+                break
+    return
 
 def execute(nparal,work_dir,vasp_exe):
 
@@ -111,4 +136,6 @@ if __name__ == "__main__" :
     if args.mode == "kpoint_convergence":
         print(args)
 #        kpoint_convergence(e_threshold=1e-3,step=10,executable=args.executable,nparal=args.np)
+    elif args.mode == "encut_convergence":
+        encut_convergence(e_threshold=1e-3,step=40,executable=args.executable)
 
