@@ -21,36 +21,21 @@ def create_kpoints(length,work_dir):
     wf.close()
     return
 
-def create_incar(mode, sys_name,work_dir):
-    if mode == "kpoint_convergence":
-        incar = pychemia.code.vasp.VaspInput()
-        incar.set_encut(1.4,POTCAR='POTCAR')
-        incar['SYSTEM'] = sys_name
-        incar['EDIFF' ] = 1e-5
-        incar['NWRITE'] = 2
-        incar['PREC'  ] = 'Accurate'
-        incar['NCORE' ] = 4
-        incar.write(work_dir+os.sep+"INCAR")
-    elif mode == "workfunction":
-        incar = pychemia.code.vasp.VaspInput()
-        incar.set_encut(1.4,POTCAR='POTCAR')
-        incar['SYSTEM'] = sys_name
-        incar['IBRION'] = -1
-        incar['ISTART'] = 0
-        incar['EDIFF'] = 1e-6
-        incar['NELMIN'] = 6
-        incar['NCORE'] = 4
-        incar['LREAL'] = 'Auto'
-        incar['LVTOT'] =  True
-        incar.write(work_dir+os.sep+"INCAR")
-    return 
-
-def kpoint_convergence(e_threshold,step,executable):
+def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
+    kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
     address_kpoint = os.getcwd() 
     toten = []
     kmesh = []
     wf = open(address_kpoint+os.sep+"kpoint_convergence",'w')
-    create_incar(mode='kpoint_convergence', sys_name=address_kpoint.split('/')[-1],work_dir=address_kpoint)
+    incar = pychemia.code.vasp.VaspInput()
+    incar.set_encut(1.4,POTCAR='POTCAR')
+    incar['EDIFF' ] = 1e-4
+    incar['NWRITE'] = 2
+    incar['PREC'  ] = 'Accurate'
+    incar['NCORE' ] = 4
+    incar['SYSTEM'] = address_kpoint.replace("/",'-')
+    incar.write(work_dir+os.sep+"INCAR")
+
     # create potcar here 
     for klength in np.arange(1,11)*step:
         create_kpoints(klength,work_dir=address_kpoint)
@@ -126,16 +111,22 @@ if __name__ == "__main__" :
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
-    parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code")
-#    parser.add_argument()
+    parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code",default = '1')
     subparsers = parser.add_subparsers()
-    parser_mode = subparsers.add_parser('kpoint_convergence')
-    parser_mode.add_argument('kstart',default=10)
+    parser_kpnt = subparsers.add_parser('kpoint_convergence')
+    parser_kpnt.add_argument('--Kstart',default=10)
+    parser_kpnt.add_argument('--Kend',default=100)
+    parser_kpnt.add_argument('--Kstep',default=10)
+    parser_kpnt.add_argument('--Ethreshold',default=1e-3)
+    parser_encut = subparsers.add_parser('encut_convergence')
+    parser_encut.add_argument('--Estart',default=400)
+    parser_encut.add_argument('--Eend',default=1200)
+    parser_encut.add_argument('--Estep',default=50)
+    parser_encut.add_argument('--Ethreshold',default=1e-3)
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
     args = parser.parse_args()
-    if args.mode == "kpoint_convergence":
-        print(args)
-#        kpoint_convergence(e_threshold=1e-3,step=10,executable=args.executable,nparal=args.np)
-    elif args.mode == "encut_convergence":
-        encut_convergence(e_threshold=1e-3,step=40,executable=args.executable)
+    if 'Kstart' in args :
+        kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
+    elif 'Estart' in args :
+        encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
 
