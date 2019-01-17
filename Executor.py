@@ -8,12 +8,12 @@ import re
 import numpy as np 
 import pychemia
 
-def create_kpoints(length,work_dir):
+def create_kpoints(length):
     length = str(length)+'\n'
     comment = 'Automatic mesh'+'\n'
     nkp     = str(0)+'\n'
     method  = 'Auto'+'\n'
-    wf = open(work_dir+os.sep+"KPOINTS",'w')
+    wf = open("KPOINTS",'w')
     wf.write(comment)
     wf.write(nkp    )
     wf.write(method )
@@ -22,31 +22,31 @@ def create_kpoints(length,work_dir):
     return
 
 def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
-    kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
-    address_kpoint = os.getcwd() 
+    address = os.getcwd() 
     toten = []
     kmesh = []
-    wf = open(address_kpoint+os.sep+"kpoint_convergence",'w')
-    incar = pychemia.code.vasp.VaspInput()
-    incar.set_encut(1.4,POTCAR='POTCAR')
-    incar['EDIFF' ] = 1e-4
-    incar['NWRITE'] = 2
-    incar['PREC'  ] = 'Accurate'
-    incar['NCORE' ] = 4
-    incar['SYSTEM'] = address_kpoint.replace("/",'-')
-    incar.write(work_dir+os.sep+"INCAR")
-
+    wf = open("kpoint_convergence",'w')
+    if not os.path.exists('INCAR'):
+        incar = pychemia.code.vasp.VaspInput()
+        incar.set_encut(1.4,POTCAR='POTCAR')
+        incar['EDIFF' ] = 1e-4
+        incar['NWRITE'] = 2
+        incar['PREC'  ] = 'Accurate'
+        incar['NCORE' ] = 4
+        incar['SYSTEM'] = address.replace("/",'-')[-2:]
+        incar.write("INCAR")
     # create potcar here 
-    for klength in np.arange(1,11)*step:
-        create_kpoints(klength,work_dir=address_kpoint)
-        runtime = execute(args.np,address_kpoint,executable)
-        rf = open(address_kpoint+os.sep+"OUTCAR",'r')
+    klengths = np.arange(start,end,step)
+    for klength in klengths:
+        create_kpoints(klength)
+        runtime = execute(nparal,address,executable)
+        rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
         toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
         kmesh.append(re.findall("generate k-points for.*",data)[0])
         wf.write("kpoint length = %i ,kmesh = %s, TOTEN =%f \n" %(klength,kmesh[-1],toten[-1]))
-        if klength/10 > 1 : # this is to check if it's not doing the calculation for the first time
+        if klength != start : # this is to check if it's not doing the calculation for the first time
             change = abs(toten[-2]-toten[-1])
             if change < e_threshold :
                 print("VASP calculations converged with k points length %i and kmesh %s " % (klength,kmesh[-1]))
@@ -54,34 +54,36 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
                 break
     return 
 
-def encut_convergence(e_threshold,step,executable):
-    address_encut = os.getcwd()
+def encut_convergence(e_threshold,start,end,step,executable,nparal):
+    address = os.getcwd()
     toten = []
-    kmesh = []
-    wf = open(address_encut+os.sep+"encut_convergence",'w')
-    if not os.path.exists(address_encut+os.sep+'KPOINTS'):
-        create_kpoints(10,workdir=address_encut)
-    rf = open(address_encut+os.sep+'POTCAR')
+    wf = open("encut_convergence",'w')
+    if not os.path.exists('KPOINTS'):
+        create_kpoints(10)
+    rf = open('POTCAR')
     potcar = rf.read()
     rf.close()
     encut_init = round(max([float(x) for x in re.findall('ENMAX\s*=\s*([0-9.]*);',potcar)])*1.3)
-    encuts = np.arange(encut_init,1000,step)
+    if start < encut_init :
+        print('Initial value provided for ENUCT is less than 1.3*ENMAX pseudo potential, replacing Estart with %f'% encut_init)
+        start = encut_init
+    encuts = np.arange(start,end,step)
     for iencut in encuts:
         incar = pychemia.code.vasp.VaspInput()
-        incar.set_encut(ENCUT=iencut)
-        incar['SYSTEM'] = sys_name
+        incar['ENCUT']  = iencut
+        incar['SYSTEM'] = address.replace("/",'-')[-2:]
         incar['EDIFF' ] = 1e-5
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
         incar['NCORE' ] = 4
-        incar.write(work_dir+os.sep+"INCAR")
-        runtime = execute(args.np,address_kpoint,executable)
-        rf = open(address_encut+os.sep+"OUTCAR",'r')
+        incar.write("INCAR")
+        runtime = execute(args.np,address,executable)
+        rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
         toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
-        kmesh.append(re.findall("generate k-points for.*",data)[0])
-        wf.write("kpoint length = %i ,kmesh = %s, TOTEN =%f \n" %(klength,kmesh[-1],toten[-1]))
+
+        wf.write("encut = %i , TOTEN =%f \n" %(iencut,toten[-1]))
         if iencut != encut_init : # this is to check if it's not doing the calculation for the first time                                                                                                  
             change = abs(toten[-2]-toten[-1])
             if change < e_threshold :
@@ -114,15 +116,15 @@ if __name__ == "__main__" :
     parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code",default = '1')
     subparsers = parser.add_subparsers()
     parser_kpnt = subparsers.add_parser('kpoint_convergence')
-    parser_kpnt.add_argument('--Kstart',default=10)
-    parser_kpnt.add_argument('--Kend',default=100)
-    parser_kpnt.add_argument('--Kstep',default=10)
-    parser_kpnt.add_argument('--Ethreshold',default=1e-3)
+    parser_kpnt.add_argument('--Kstart',type=float,default=10)
+    parser_kpnt.add_argument('--Kend',type=float,default=100)
+    parser_kpnt.add_argument('--Kstep',type=float,default=10)
+    parser_kpnt.add_argument('--Ethreshold',type=float,default=1e-3)
     parser_encut = subparsers.add_parser('encut_convergence')
-    parser_encut.add_argument('--Estart',default=400)
-    parser_encut.add_argument('--Eend',default=1200)
-    parser_encut.add_argument('--Estep',default=50)
-    parser_encut.add_argument('--Ethreshold',default=1e-3)
+    parser_encut.add_argument('--Estart',type=float,default=100)
+    parser_encut.add_argument('--Eend',type=float,default=1200)
+    parser_encut.add_argument('--Estep',type=float,default=50)
+    parser_encut.add_argument('--Ethreshold',type=float,default=1e-3)
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
     args = parser.parse_args()
     if 'Kstart' in args :
