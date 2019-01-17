@@ -33,7 +33,7 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
         incar['NCORE' ] = 4
-        incar['SYSTEM'] = address.replace("/",'-')[-2:]
+        incar['SYSTEM'] = '-'.join(address.split('/')[-2:])
         incar.write("INCAR")
     # create potcar here 
     klengths = np.arange(start,end,step)
@@ -71,7 +71,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
     for iencut in encuts:
         incar = pychemia.code.vasp.VaspInput()
         incar['ENCUT']  = iencut
-        incar['SYSTEM'] = address.replace("/",'-')[-2:]
+        incar['SYSTEM'] = '-'.join(address.split('/')[-2:])
         incar['EDIFF' ] = 1e-5
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
