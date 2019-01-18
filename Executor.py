@@ -25,7 +25,6 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
     address = os.getcwd() 
     toten = []
     kmesh = []
-    wf = open("kpoint_convergence",'w')
     if not os.path.exists('INCAR'):
         incar = pychemia.code.vasp.VaspInput()
         incar.set_encut(1.4,POTCAR='POTCAR')
@@ -39,25 +38,28 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
     klengths = np.arange(start,end,step)
     for klength in klengths:
         create_kpoints(klength)
+        print("===============================================================================================================================================================")
+        print("===============================================================================================================================================================")
+        print("===============================================================================================================================================================")
         runtime = execute(nparal,address,executable)
         rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
         toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
         kmesh.append(re.findall("generate k-points for.*",data)[0])
+        wf = open("kpoint_convergence",'w')        
         wf.write("kpoint length = %i ,kmesh = %s, TOTEN =%f \n" %(klength,kmesh[-1],toten[-1]))
+        wf.close()
         if klength != start : # this is to check if it's not doing the calculation for the first time
             change = abs(toten[-2]-toten[-1])
             if change < e_threshold :
                 print("VASP calculations converged with k points length %i and kmesh %s " % (klength,kmesh[-1]))
-                wf.close()
                 break
     return 
 
 def encut_convergence(e_threshold,start,end,step,executable,nparal):
     address = os.getcwd()
     toten = []
-    wf = open("encut_convergence",'w')
     if not os.path.exists('KPOINTS'):
         create_kpoints(10)
     rf = open('POTCAR')
@@ -77,18 +79,23 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         incar['PREC'  ] = 'Accurate'
         incar['NCORE' ] = 4
         incar.write("INCAR")
+        print("===============================================================================================================================================================")
+        print("===============================================================================================================================================================")
+        print("===============================================================================================================================================================")
+        print('Running vasp with ENCUT = {}'.format(iencut))
         runtime = execute(args.np,address,executable)
         rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
         toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
-
+        wf = open("encut_convergence",'a')
         wf.write("encut = %i , TOTEN =%f \n" %(iencut,toten[-1]))
+        wf.close()
         if iencut != encut_init : # this is to check if it's not doing the calculation for the first time                                                                                                  
             change = abs(toten[-2]-toten[-1])
             if change < e_threshold :
                 print("VASP calculations converged with encut " % (iencut))
-                wf.close()
+
                 break
     return
 
