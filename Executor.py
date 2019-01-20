@@ -38,23 +38,24 @@ def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
     klengths = np.arange(start,end,step)
     for klength in klengths:
         create_kpoints(klength)
-        print("===============================================================================================================================================================")
-        print("===============================================================================================================================================================")
-        print("===============================================================================================================================================================")
+        print("===================================================================================")
+        print("===================================================================================")
+        print("===================================================================================")
         runtime = execute(nparal,address,executable)
         rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
         toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
         kmesh.append(re.findall("generate k-points for.*",data)[0])
-        wf = open("kpoint_convergence",'w')        
+        wf = open("kpoint_convergence",'a')        
         wf.write("kpoint length = %i ,kmesh = %s, TOTEN =%f \n" %(klength,kmesh[-1],toten[-1]))
         wf.close()
         if klength != start : # this is to check if it's not doing the calculation for the first time
             change = abs(toten[-2]-toten[-1])
-            if change < e_threshold :
+            if change < e_threshold : # need to add more comparision here
                 print("VASP calculations converged with k points length %i and kmesh %s " % (klength,kmesh[-1]))
                 break
+    print("VASP calculations converged with k points length %i and kmesh %s " % (klengths[conv_idx],kmesh[conv_idx]))
     return 
 
 def encut_convergence(e_threshold,start,end,step,executable,nparal):
@@ -68,7 +69,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
     encut_init = round(max([float(x) for x in re.findall('ENMAX\s*=\s*([0-9.]*);',potcar)])*1.3)
     if start < encut_init :
         print('Initial value provided for ENUCT is less than 1.3*ENMAX pseudo potential, replacing Estart with %f'% encut_init)
-        start = encut_init
+        start = round(encut_init,-2)
     encuts = np.arange(start,end,step)
     for iencut in encuts:
         incar = pychemia.code.vasp.VaspInput()
@@ -79,9 +80,9 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         incar['PREC'  ] = 'Accurate'
         incar['NCORE' ] = 4
         incar.write("INCAR")
-        print("===============================================================================================================================================================")
-        print("===============================================================================================================================================================")
-        print("===============================================================================================================================================================")
+        print("===================================================================================")
+        print("===================================================================================")
+        print("===================================================================================")
         print('Running vasp with ENCUT = {}'.format(iencut))
         runtime = execute(args.np,address,executable)
         rf = open("OUTCAR",'r')
@@ -91,12 +92,12 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         wf = open("encut_convergence",'a')
         wf.write("encut = %i , TOTEN =%f \n" %(iencut,toten[-1]))
         wf.close()
-        if iencut != encut_init : # this is to check if it's not doing the calculation for the first time                                                                                                  
-            change = abs(toten[-2]-toten[-1])
-            if change < e_threshold :
-                print("VASP calculations converged with encut " % (iencut))
-
-                break
+    toten = np.array(toten)
+    encut_idx = toten - toten[-1] < e_threshold
+    best_encut = encuts[encut_idx][0]
+    wf = open('best_encut','w')
+    wf.write('best_cut = {}'.format(best_encut))
+    wf.close()
     return
 
 def execute(nparal,work_dir,vasp_exe):
@@ -129,7 +130,7 @@ if __name__ == "__main__" :
     parser_kpnt.add_argument('--Ethreshold',type=float,default=1e-3)
     parser_encut = subparsers.add_parser('encut_convergence')
     parser_encut.add_argument('--Estart',type=float,default=100)
-    parser_encut.add_argument('--Eend',type=float,default=1200)
+    parser_encut.add_argument('--Eend',type=float,default=900)
     parser_encut.add_argument('--Estep',type=float,default=50)
     parser_encut.add_argument('--Ethreshold',type=float,default=1e-3)
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
