@@ -6,7 +6,9 @@ import argparse
 import time
 import re
 import numpy as np 
+import math
 import pychemia
+
 
 def create_kpoints(length):
     length = str(length)+'\n'
@@ -20,6 +22,64 @@ def create_kpoints(length):
     wf.write(length )
     wf.close()
     return
+
+def kpoint_manual(e_threshold,start,end,step,executable,nparal):
+    # manual kmesh generation
+    # in this case start = total number of kpoints to start with
+    #              end   = maximum number of kpoints
+    #              step  = jumps from
+    address = os.getcwd()
+    structure = pychemia.code.vasp.read_poscar("POSCAR")
+    rec_cell = np.linalg.inv(structure.cell).T * 2*np.pi
+    b1 = np.linalg.norm(rec_cell[0,:])
+    b2 = np.linalg.norm(rec_cell[1,:])
+    b3 = np.linalg.norm(rec_cell[2,:])
+    # rlv = Reciprocal Lattice Vector
+    rlv = np.array([b1,b2,b3])
+    kpnts = [] 
+    toten= [] 
+    for i in range(start,end,step): 
+        j = np.arange(0,200,1e-3) 
+        counter = 0 
+        while math.ceil(rlv[np.argmax(rlv)]*j[counter]) != i : 
+            counter += 1
+        kpnts.append([math.ceil(b1*j[counter]),math.ceil(b2*j[counter]),math.ceil(b3*j[counter])]) 
+    for ikpoint in kpnts:
+        print("===================================================================================")
+        print("===================================================================================")
+        print("===================================================================================")
+        print('Running VASP for kmesh %i %i %i'% (tuple(ikpoint)))
+        kp = pychemia.crystal.KPoints(kmode='Monkhorst-pack')
+        kp.set_grid(ikpoint)
+        pychemia.code.vasp.kpoints.write_kpoints(kp=kp,filepath='KPOINTS')
+        if not os.path.exists('INCAR'):
+            incar = pychemia.code.vasp.VaspInput()
+            incar.set_encut(1.4,POTCAR='POTCAR')
+            incar['EDIFF' ] = 1e-4
+            incar['NWRITE'] = 2
+            incar['PREC'  ] = 'Accurate'
+            incar['NCORE' ] = 4
+            incar['SYSTEM'] = '-'.join(address.split('/')[-2:])
+            incar.write("INCAR")
+        runtime = execute(nparal,address,executable)
+        rf = open("OUTCAR",'r')
+        data = rf.read()
+        rf.close()
+        toten.append(float(re.findall("TOTEN\s*=\s*([-+0-9.]*)\s*eV",data)[-1]))
+        wf = open("kpoint_convergence",'a')
+        wf.write("kmesh = %i %i %i , TOTEN =%f \n" %(ikpoint[0],ikpoint[1],ikpoint[2],toten[-1]))
+        wf.close()
+    kpnts = np.array(kpnts)
+    toten = np.array(toten)
+    kpnt_idx = abs(toten - toten[-1]) < e_threshold
+    best_kpnt = list(kpnts[kpnt_idx][0])
+    wf = open('best_kpnt','w')
+    wf.write('kpnt_cut = %i %i %i ' % tuple(best_kpnt))
+    wf.close()
+
+    return
+    
+
 
 def kpoint_convergence(e_threshold,start,end,step,executable,nparal):
     address = os.getcwd() 
@@ -84,7 +144,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         print("===================================================================================")
         print("===================================================================================")
         print('Running vasp with ENCUT = {}'.format(iencut))
-        runtime = execute(args.np,address,executable)
+        runtime = execute(nparal,address,executable)
         rf = open("OUTCAR",'r')
         data = rf.read()
         rf.close()
@@ -93,7 +153,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         wf.write("encut = %i , TOTEN =%f \n" %(iencut,toten[-1]))
         wf.close()
     toten = np.array(toten)
-    encut_idx = toten - toten[-1] < e_threshold
+    encut_idx = abs(toten - toten[-1]) < e_threshold
     best_encut = encuts[encut_idx][0]
     wf = open('best_encut','w')
     wf.write('best_cut = {}'.format(best_encut))
@@ -124,9 +184,10 @@ if __name__ == "__main__" :
     parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code",default = '1')
     subparsers = parser.add_subparsers()
     parser_kpnt = subparsers.add_parser('kpoint_convergence')
-    parser_kpnt.add_argument('--Kstart',type=float,default=10)
-    parser_kpnt.add_argument('--Kend',type=float,default=100)
-    parser_kpnt.add_argument('--Kstep',type=float,default=10)
+    parser_kpnt.add_argument('--mode',type=str,default='auto')
+    parser_kpnt.add_argument('--Kstart',type=int,default=10)
+    parser_kpnt.add_argument('--Kend',type=int,default=100)
+    parser_kpnt.add_argument('--Kstep',type=int,default=10)
     parser_kpnt.add_argument('--Ethreshold',type=float,default=1e-3)
     parser_encut = subparsers.add_parser('encut_convergence')
     parser_encut.add_argument('--Estart',type=float,default=100)
@@ -136,7 +197,10 @@ if __name__ == "__main__" :
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
     args = parser.parse_args()
     if 'Kstart' in args :
-        kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
+        if args.mode == 'auto':
+            kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
+        elif args.mode == 'manual':
+            kpoint_manual(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
     elif 'Estart' in args :
         encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
 
