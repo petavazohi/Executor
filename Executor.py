@@ -8,7 +8,7 @@ import re
 import numpy as np 
 import math
 import pychemia
-
+import pymatgen
 
 def create_kpoints(length):
     length = str(length)+'\n'
@@ -29,8 +29,14 @@ def kpoint_manual(e_threshold,start,end,step,executable,nparal):
     #              end   = maximum number of kpoints
     #              step  = jumps from
     address = os.getcwd()
-    structure = pychemia.code.vasp.read_poscar("POSCAR")
-    rec_cell = np.linalg.inv(structure.cell).T * 2*np.pi
+    # I am adding this section as selective dynamics is still not implemented in pychemia
+    try :
+        structure = pychemia.code.vasp.read_poscar("POSCAR")
+        cell = structure.cell
+    except :
+        structure = pymatgen.io.vasp.Poscar.from_file("POSCAR").structure
+        cell = st.lattice.matrix
+    rec_cell = np.linalg.inv(cell).T * 2*np.pi
     b1 = np.linalg.norm(rec_cell[0,:])
     b2 = np.linalg.norm(rec_cell[1,:])
     b3 = np.linalg.norm(rec_cell[2,:])
