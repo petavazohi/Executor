@@ -166,13 +166,9 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
     wf.close()
     return
 
-def relax_structure(encut,kgrid,kmode,executable,nparal):
+def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
     address = os.getcwd()
     incar = pychemia.code.vasp.VaspInput()
-    if any(np.array(kgrid)<4):
-        ismear = 2
-    else :
-        ismear = -5
     if encut == None:
         incar.set_encut(1.4,POTCAR='POTCAR')
     else :
@@ -192,14 +188,47 @@ def relax_structure(encut,kgrid,kmode,executable,nparal):
     incar['IBRION'] = 2         # how atoms are updated to move 
     incar['ISIF'] = 3
     incar['ISYM'] = 2
+    incar['NCORE' ] = 4
     incar.write("INCAR")
     if kmode == None and kgrid == None:
         create_kpoints(30)
-    kp = pychemia.crystal.KPoints(kmode=kmode)
-    kp.set_grid(kgrid)
-    pychemia.code.vasp.kpoints.write_kpoints(kp=kp,filepath='KPOINTS')
+    else : 
+        kp = pychemia.crystal.KPoints(kmode=kmode)
+        kp.set_grid(kgrid)
+        pychemia.code.vasp.kpoints.write_kpoints(kp=kp,filepath='KPOINTS')
     runtime = execute(nparal,address,executable)
     return
+
+def SCF(encut,kgrid,kmode,ismear,executable,nparal):
+    address = os.getcwd()
+    magmom = '' 
+    for x in comp: 
+        magmom += '%i*0.5 ' % comp[x] 
+    incar = pychemia.code.vasp.VaspInput()
+    if encut == None:
+        incar.set_encut(1.4,POTCAR='POTCAR')
+    else :
+        incar.set_encut(encut)
+    incar['SYSTEM']  = '-'.join(address.split('/')[-2:])
+    incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
+    incar['ISTART']  = 0        # does not read WAVECAR
+    incar['EDIFF']   = 1e-06
+    incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
+    incar['NELMIN'] = 6         # minimum number of electronic steps
+    incar['IBRION'] = -1         # how atoms are updated to move 
+    incar['ISPIN'] = 2
+    incar['NCORE' ] = 4
+    incar['MAGMOM'] = magmom
+    incar.write("INCAR")
+    if kmode == None and kgrid == None:
+        create_kpoints(30)
+    else : 
+        kp = pychemia.crystal.KPoints(kmode=kmode)
+        kp.set_grid(kgrid)
+        pychemia.code.vasp.kpoints.write_kpoints(kp=kp,filepath='KPOINTS')
+    runtime = execute(nparal,address,executable)
+    return
+
 
 def execute(nparal,work_dir,vasp_exe):
 
@@ -240,7 +269,12 @@ if __name__ == "__main__" :
     parser_rlx.add_argument('--Kmode',type=str,default='Monkhorst-pack')
     parser_rlx.add_argument('--Kgrid',type=int,nargs=3)
     parser_rlx.add_argument('--encut',type=float)
-    
+    parser_rlx.add_argument('--ismear',type=int,default=0)
+    parser_scf = subparsers.add_parser('SCF')
+    parser_scf.add_argument('--Kmode',type=str,default='Monkhorst-pack')
+    parser_scf.add_argument('--Kgrid',type=int,nargs=3)
+    parser_scf.add_argument('--encut',type=float)
+    parser_scf.add_argument('--ismear',type=int,default=0)
     args = parser.parse_args()
     if  args.calc == 'kpoint_convergence':
         if args.mode == 'auto':
@@ -250,4 +284,6 @@ if __name__ == "__main__" :
     elif args.calc == 'encut_convergence':
         encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
     elif args.calc == 'structure_relax' :
-        relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,executable=args.executable,nparal=args.np)
+        relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np)
+    elif args.calc == 'SCF':
+        SCF(encut,kgrid,kmode,ismear,executable,nparal)
