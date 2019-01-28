@@ -8,7 +8,7 @@ import re
 import numpy as np 
 import math
 import pychemia
-import pymatgen
+import pymatgen.io.vasp as vasp
 
 def create_kpoints(length):
     length = str(length)+'\n'
@@ -34,8 +34,8 @@ def kpoint_manual(e_threshold,start,end,step,executable,nparal):
         structure = pychemia.code.vasp.read_poscar("POSCAR")
         cell = structure.cell
     except :
-        structure = pymatgen.io.vasp.Poscar.from_file("POSCAR").structure
-        cell = st.lattice.matrix
+        structure = vasp.Poscar.from_file("POSCAR").structure
+        cell = structure.lattice.matrix
     rec_cell = np.linalg.inv(cell).T * 2*np.pi
     b1 = np.linalg.norm(rec_cell[0,:])
     b2 = np.linalg.norm(rec_cell[1,:])
