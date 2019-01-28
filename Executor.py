@@ -166,6 +166,41 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
     wf.close()
     return
 
+def relax_structure(encut,kgrid,kmode,executable,nparal):
+    address = os.getcwd()
+    incar = pychemia.code.vasp.VaspInput()
+    if any(np.array(kgrid)<4):
+        ismear = 2
+    else :
+        ismear = -5
+    if encut == None:
+        incar.set_encut(1.4,POTCAR='POTCAR')
+    else :
+        incar.set_encut(encut)
+    incar['SYSTEM']  = '-'.join(address.split('/')[-2:])
+    incar['NWRITE']  = 3        # how much info to write in outcar, long MD 0,1 short MD 2,3 debug 4 
+    incar['PREC']    = 'Accurate'
+    incar['ADDGRID'] = True    # additional support grid for augmentation charges
+    incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
+    incar['ISTART']  = 0        # does not read WAVECAR
+    incar['LWAVE']   = False    # does not write WAVECAR
+    incar['EDIFF']   = 1e-06
+    incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
+    incar['NELMIN'] = 6         # minimum number of electronic steps
+    incar['EDIFFG'] = 1E-05
+    incar['NSW'] = 60
+    incar['IBRION'] = 2         # how atoms are updated to move 
+    incar['ISIF'] = 3
+    incar['ISYM'] = 2
+    incar.write("INCAR")
+    if kmode == None and kgrid == None:
+        create_kpoints(30)
+    kp = pychemia.crystal.KPoints(kmode=kmode)
+    kp.set_grid(kgrid)
+    pychemia.code.vasp.kpoints.write_kpoints(kp=kp,filepath='KPOINTS')
+    runtime = execute(nparal,address,executable)
+    return
+
 def execute(nparal,work_dir,vasp_exe):
 
      wf=open(work_dir+os.sep+'RUNNING','w')
@@ -188,7 +223,7 @@ if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument("--structure",dest="structure",type=str,help='poscar structure that you want to run',default = 'POSCAR')
     parser.add_argument("-np" ,dest="np",type=int ,action="store", help="Number of MPI processes for the code",default = '1')
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(dest='calc')
     parser_kpnt = subparsers.add_parser('kpoint_convergence')
     parser_kpnt.add_argument('--mode',type=str,default='auto')
     parser_kpnt.add_argument('--Kstart',type=int,default=10)
@@ -201,12 +236,18 @@ if __name__ == "__main__" :
     parser_encut.add_argument('--Estep',type=float,default=50)
     parser_encut.add_argument('--Ethreshold',type=float,default=1e-3)
     parser.add_argument("--executable",dest="executable",type=str,action="store",help="vasp executable",default="vasp_std")
+    parser_rlx = subparsers.add_parser('structure_relax')
+    parser_rlx.add_argument('--Kmode',type=str,default='Monkhorst-pack')
+    parser_rlx.add_argument('--Kgrid',type=int,nargs=3)
+    parser_rlx.add_argument('--encut',type=float)
+    
     args = parser.parse_args()
-    if 'Kstart' in args :
+    if  args.calc == 'kpoint_convergence':
         if args.mode == 'auto':
             kpoint_convergence(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
         elif args.mode == 'manual':
             kpoint_manual(e_threshold=args.Ethreshold,start=args.Kstart,end=args.Kend,step=args.Kstep,executable=args.executable,nparal=args.np)
-    elif 'Estart' in args :
+    elif args.calc == 'encut_convergence':
         encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
-
+    elif args.calc == 'structure_relax' :
+        relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,executable=args.executable,nparal=args.np)
