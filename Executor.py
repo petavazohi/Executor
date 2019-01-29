@@ -174,7 +174,7 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
     else :
         incar.set_encut(encut)
     incar['SYSTEM']  = '-'.join(address.split('/')[-2:])
-    incar['NWRITE']  = 3        # how much info to write in outcar, long MD 0,1 short MD 2,3 debug 4 
+    incar['NWRITE']  = 3        # how much info to write in outcar, long MD 0,1 short MD 2,3 debug 4
     incar['PREC']    = 'Accurate'
     incar['ADDGRID'] = True    # additional support grid for augmentation charges
     incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
@@ -202,6 +202,8 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
 def SCF(encut,kgrid,kmode,ismear,executable,nparal):
     address = os.getcwd()
     magmom = '' 
+    structure = pychemia.code.vasp.read_poscar()
+    comp = structure.get_composition() 
     for x in comp: 
         magmom += '%i*0.5 ' % comp[x] 
     incar = pychemia.code.vasp.VaspInput()
@@ -270,7 +272,7 @@ if __name__ == "__main__" :
     parser_rlx.add_argument('--Kgrid',type=int,nargs=3)
     parser_rlx.add_argument('--encut',type=float)
     parser_rlx.add_argument('--ismear',type=int,default=0)
-    parser_scf = subparsers.add_parser('SCF')
+    parser_scf = subparsers.add_parser('scf')
     parser_scf.add_argument('--Kmode',type=str,default='Monkhorst-pack')
     parser_scf.add_argument('--Kgrid',type=int,nargs=3)
     parser_scf.add_argument('--encut',type=float)
@@ -285,5 +287,5 @@ if __name__ == "__main__" :
         encut_convergence(e_threshold=args.Ethreshold,start=args.Estart,end=args.Eend,step=args.Estep,executable=args.executable,nparal=args.np)
     elif args.calc == 'structure_relax' :
         relax_structure(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np)
-    elif args.calc == 'SCF':
-        SCF(encut,kgrid,kmode,ismear,executable,nparal)
+    elif args.calc == 'scf':
+        SCF(encut=args.encut,kgrid=args.Kgrid,kmode=args.Kmode,ismear=args.ismear,executable=args.executable,nparal=args.np)
