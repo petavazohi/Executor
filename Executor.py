@@ -202,8 +202,12 @@ def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
 def SCF(encut,kgrid,kmode,ismear,executable,nparal):
     address = os.getcwd()
     magmom = '' 
-    structure = pychemia.code.vasp.read_poscar()
-    comp = structure.get_composition() 
+    try :
+        structure = pychemia.code.vasp.read_poscar("POSCAR")
+        comp = structure.get_composition() 
+    except :
+        structure = vasp.Poscar.from_file("POSCAR").structure
+        comp = structure.composition
     for x in comp: 
         magmom += '%i*0.5 ' % comp[x] 
     incar = pychemia.code.vasp.VaspInput()
