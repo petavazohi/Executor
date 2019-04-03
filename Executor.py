@@ -145,6 +145,7 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
         incar['NWRITE'] = 2
         incar['PREC'  ] = 'Accurate'
         incar['NCORE' ] = 4
+
         incar.write("INCAR")
         print("===================================================================================")
         print("===================================================================================")
@@ -168,28 +169,30 @@ def encut_convergence(e_threshold,start,end,step,executable,nparal):
 
 def relax_structure(encut,kgrid,kmode,ismear,executable,nparal):
     address = os.getcwd()
-    incar = pychemia.code.vasp.VaspInput()
-    if encut == None:
-        incar.set_encut(1.4,POTCAR='POTCAR')
-    else :
-        incar.set_encut(encut)
-    incar['SYSTEM']  = '-'.join(address.split('/')[-2:])
-    incar['NWRITE']  = 3        # how much info to write in outcar, long MD 0,1 short MD 2,3 debug 4
-    incar['PREC']    = 'Accurate'
-    incar['ADDGRID'] = True    # additional support grid for augmentation charges
-    incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
-    incar['ISTART']  = 0        # does not read WAVECAR
-    incar['LWAVE']   = False    # does not write WAVECAR
-    incar['EDIFF']   = 1e-06
-    incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
-    incar['NELMIN'] = 6         # minimum number of electronic steps
-    incar['EDIFFG'] = 1E-05
-    incar['NSW'] = 60
-    incar['IBRION'] = 2         # how atoms are updated to move 
-    incar['ISIF'] = 3
-    incar['ISYM'] = 2
-    incar['NCORE' ] = 4
-    incar.write("INCAR")
+    if not os.path.exists('INCAR'):
+        incar = pychemia.code.vasp.VaspInput()
+        if encut == None:
+            incar.set_encut(1.4,POTCAR='POTCAR')
+        else :
+            incar.set_encut(encut)
+            incar['SYSTEM']  = '-'.join(address.split('/')[-2:])
+            incar['NWRITE']  = 3        # how much info to write in outcar, long MD 0,1 short MD 2,3 debug 4
+            incar['PREC']    = 'Accurate'
+            incar['ADDGRID'] = True    # additional support grid for augmentation charges
+            incar['ISMEAR']  = ismear   # tetrahedron method with Blöchl corrections 
+            incar['ISTART']  = 0        # does not read WAVECAR
+            incar['LWAVE']   = False    # does not write WAVECAR
+            incar['EDIFF']   = 1e-06
+            incar['LREAL']   = 'a'      # projection in real space or reciprocal, a is automatic
+            incar['NELMIN'] = 6         # minimum number of electronic steps
+            incar['EDIFFG'] = -1E-03
+            incar['NSW'] = 100
+            incar['IBRION'] = 2         # how atoms are updated to move 
+            incar['ISIF'] = 3
+            incar['ISYM'] = 2
+            incar['SIGMA'] = 0.05
+            incar['NPAR' ] = int(nparal/28)
+            incar.write("INCAR")
     if kmode == None and kgrid == None:
         create_kpoints(30)
     else : 
@@ -225,6 +228,7 @@ def SCF(encut,kgrid,kmode,ismear,executable,nparal):
     incar['ISPIN'] = 2
     incar['NCORE' ] = 4
     incar['MAGMOM'] = magmom
+    incar['SIGMA'] = 0.05
     incar.write("INCAR")
     if kmode == None and kgrid == None:
         create_kpoints(30)
